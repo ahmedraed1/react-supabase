@@ -7,6 +7,7 @@ interface Task {
   title: string;
   description: string;
   email: string;
+  image_url: string;
   created_at: string;
 }
 
@@ -21,15 +22,21 @@ export default function TaskManager({ session }: { session: Session}) {
 
  const [newDescription, setNewDescription] = useState<string>('');
 
+ const [taskImage, setTaskImage] = useState<File | null>(null);
 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+
+    let imageUrl : string | null = null;
+    if (taskImage) {
+      imageUrl = await uploadImage(taskImage);
+    }
     try {
       const { error } = await supabase
         .from('tasks')
-        .insert({ ...newTask, email: session.user.email })
+        .insert({ ...newTask, email: session.user.email , image_url: imageUrl })
         .select()
         .single();
 
@@ -73,6 +80,26 @@ export default function TaskManager({ session }: { session: Session}) {
     setNewDescription('');
   };
 
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && e.target.files && e.target.files.length > 0) {
+      setTaskImage(file);
+    } else {
+      setTaskImage(null);
+    }
+  };
+
+
+  const uploadImage = async (file: File): Promise<string | null> => {
+  const filePath = `${Date.now()}-${file.name}`;
+  const { data, error } = await supabase.storage.from('tasks-images').upload(filePath, file);
+  if (error) {
+    console.error('Error uploading image:', error);
+    return null;
+  }
+  return data.path;
+};
 
    useEffect(() => {
     fetchTasks();
@@ -136,6 +163,7 @@ export default function TaskManager({ session }: { session: Session}) {
 
         <input value={newTask.title} type="text" placeholder="Title" style={{padding: '0.5rem 1rem' , width: '100%'}} onChange={(e) => setNewTask({ ...newTask, title: e.target.value })} />
         <textarea value={newTask.description} name="" id="" placeholder='Description' style={{resize: 'none' , width : '100%', height: '150px', border: '1px solid #ccc' , padding: '10px'}} onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}></textarea>
+        <input type="file" name="file" id="file-input" accept='image/*' style={{padding: '0.5rem 1rem' , width: '100%'}} placeholder='Upload Image' onChange={handleFileChange} />
         <button  type='submit' style={{cursor: 'pointer' , padding: '0.5rem 1rem'}} onClick={handleSubmit}>Add Task</button>
       </form>
 
@@ -146,7 +174,7 @@ export default function TaskManager({ session }: { session: Session}) {
           <span>{task.title}</span>
           <p>{task.description}</p>
           <span>{ new Date(task.created_at).toLocaleString()}</span>
-          <div>
+          <img src={`https://iydieobxlorlaoewbxgy.supabase.co/storage/v1/object/public/tasks-images//${task.image_url}`} alt="" style={{width: '100px', height: '100px'}} />          <div>
           
          {session.user.email === task.email && <><button style={{cursor: 'pointer'}} onClick={() => deleteTask(task.id)}>Delete</button><button style={{cursor: 'pointer'}} onClick={() => updteDescription(task.id)}>Edit</button>
           <textarea value={newDescription} onChange={(e) => setNewDescription(e.target.value)} name="edit" id="edit" style={{resize: 'none' , width : '50%', height: '20px', border: '1px solid #ccc' , padding: '10px'}} placeholder='Edit Description'></textarea>
